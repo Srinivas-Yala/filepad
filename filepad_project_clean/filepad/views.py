@@ -66,11 +66,18 @@ def upload_file(request):
     if not password or not uploaded_file:
         return Response({'error': 'Password and file required'}, status=status.HTTP_400_BAD_REQUEST)
     
-    if uploaded_file.size > 10 * 1024 * 1024:
-        return Response({'error': 'File size cannot exceed 10MB'}, status=status.HTTP_400_BAD_REQUEST)
-    
+    if uploaded_file.size > 100 * 1024 * 1024:
+        return Response({'error': 'File size cannot exceed 100MB'}, status=status.HTTP_400_BAD_REQUEST)
+
     user_hash = hash_password(password)
     user_space, created = UserSpace.objects.get_or_create(user_hash=user_hash)
+
+    # Check file count limit (5 files max)
+    current_file_count = user_space.files.count()
+    if current_file_count >= 5:
+        return Response({
+        'error': 'Storage limit reached. You can only store 5 files. Please delete some files to upload new ones.'
+        }, status=status.HTTP_400_BAD_REQUEST)
     
     file_obj = UploadedFile.objects.create(
         user_space=user_space,
@@ -123,10 +130,33 @@ def download_file(request, file_id):
         user_space = UserSpace.objects.get(user_hash=user_hash)
         file_obj = get_object_or_404(UploadedFile, id=file_id, user_space=user_space)
         
-        # Redirect to S3 signed URL or local file
-        if hasattr(file_obj.file, 'url'):
+        # Generate signed URL for S3
+        from django.conf import settings
+        if settings.USE_S3:
+            import boto3
+            from botocore.config import Config
+            
+            s3_client = boto3.client(
+                's3',
+                aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                region_name=settings.AWS_S3_REGION_NAME,
+                config=Config(signature_version='s3v4')
+            )
+            
+            presigned_url = s3_client.generate_presigned_url(
+                'get_object',
+                Params={
+                    'Bucket': settings.AWS_STORAGE_BUCKET_NAME,
+                    'Key': file_obj.file.name,
+                    'ResponseContentDisposition': f'attachment; filename="{file_obj.original_filename}"'
+                },
+                ExpiresIn=3600
+            )
+            
+            return HttpResponseRedirect(presigned_url)
+        else:
             return HttpResponseRedirect(file_obj.file.url)
-        
-        raise Http404("File not found")
+            
     except UserSpace.DoesNotExist:
         return Response({'error': 'User space not found'}, status=status.HTTP_404_NOT_FOUND)

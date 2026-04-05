@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -32,7 +33,7 @@
         .upload-area { border: 2px dashed #667eea; border-radius: 8px; padding: 30px; text-align: center; margin-bottom: 30px; cursor: pointer; transition: 0.3s; }
         .upload-area:hover { background-color: #f8f9ff; }
         .upload-icon { font-size: 3em; margin-bottom: 10px; color: #667eea; }
-        .file-list h3 { margin-bottom: 15px; color: #333; margin-top: 30px; }
+        .file-list h3 { margin-bottom: 15px; color: #333; margin-top: 20px; }
         .file-item { display: flex; align-items: center; justify-content: space-between; padding: 15px; background: #f8f9fa; border-radius: 8px; margin-bottom: 10px; }
         .file-info { display: flex; align-items: center; gap: 12px; flex: 1; }
         .file-icon { font-size: 1.5em; }
@@ -47,175 +48,190 @@
         .error { background: #f8d7da; color: #721c24; padding: 12px; border-radius: 8px; margin-bottom: 15px; }
         .success { background: #d4edda; color: #155724; padding: 12px; border-radius: 8px; margin-bottom: 15px; }
         .info-text { color: #6c757d; font-size: 0.9em; margin-top: 10px; }
+
+        /* Modal */
+        #confirmModal {
+            display:none;
+            position:fixed;
+            top:0; left:0;
+            width:100%; height:100%;
+            background:rgba(0,0,0,0.5);
+            align-items:center;
+            justify-content:center;
+        }
+        #confirmModal .box {
+            background:white;
+            padding:20px;
+            border-radius:10px;
+            width:300px;
+            text-align:center;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>🔐 FilePad</h1>
-            <p>Secure Cloud Storage</p>
-        </div>
-        <div class="content">
-            <div class="login-section active">
-                <div id="loginError"></div>
-                <div class="input-group">
-                    <label>Enter Your Password</label>
-                    <input type="password" id="password" placeholder="4-32 characters" minlength="4" maxlength="32" autocomplete="off">
-                    <p class="info-text">Password must be 4-32 characters. Secured with SHA-256 hashing.</p>
-                </div>
-                <button type="button" class="btn" id="loginBtn">Access FilePad</button>
-                <p style="margin-top: 20px; text-align: center; color: #6c757d;">New user? Enter a password to create your secure space.</p>
+<div class="container">
+    <div class="header">
+        <h1>🔐 FilePad</h1>
+        <p>Secure Cloud Storage</p>
+    </div>
+
+    <div class="content">
+        <!-- LOGIN -->
+        <div class="login-section active">
+            <div id="loginError"></div>
+            <div class="input-group">
+                <label>Enter Your Password</label>
+                <input type="password" id="password" placeholder="4-32 characters" minlength="4" maxlength="32">
             </div>
-            <div class="filepad-section">
-                <div id="filepadMessage"></div>
-                <div class="user-info">
-                    <div>🔐 <strong>Logged in securely</strong></div>
-                    <button type="button" class="btn-secondary" id="logoutBtn">Logout</button>
-                </div>
-                <div class="upload-area" id="uploadArea">
-                    <div class="upload-icon">☁️</div>
-                    <h3>Click to Upload Files</h3>
-                    <p style="color: #6c757d;">Files stored securely in AWS S3 (max 10MB)</p>
-                </div>
-                <input type="file" id="fileInput" multiple style="display:none;">
-                <div class="file-list">
-                    <h3>Your Files</h3>
-                    <div id="files"></div>
-                </div>
+            <button class="btn" id="loginBtn">Access FilePad Anywhere</button>
+        </div>
+
+        <!-- FILEPAD -->
+        <div class="filepad-section">
+            <div id="filepadMessage"></div>
+
+            <div class="user-info">
+                <div>🔐 <strong>Logged in securely</strong></div>
+                <button class="btn-secondary" id="logoutBtn">Logout</button>
+            </div>
+
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">☁️</div>
+                <h3>Click to Upload Files</h3>
+                <p style="color:#6c757d;">Max 100MB • 5 files max</p>
+            </div>
+
+            <input type="file" id="fileInput" multiple style="display:none;">
+
+            <div class="file-list">
+                <h3>Your Files</h3>
+                <div id="files"></div>
             </div>
         </div>
     </div>
-    <script>
-        const API = window.location.origin + '/api';
-        let pwd = null, files = [];
-        
-        document.getElementById('loginBtn').addEventListener('click', login);
-        document.getElementById('password').addEventListener('keypress', e => { 
-            if (e.key === 'Enter') { e.preventDefault(); login(); } 
-        });
-        document.getElementById('uploadArea').addEventListener('click', () => document.getElementById('fileInput').click());
-        document.getElementById('fileInput').addEventListener('change', upload);
-        document.getElementById('logoutBtn').addEventListener('click', logout);
-        
-        async function login() {
-            const p = document.getElementById('password').value;
-            if (!p) { showMsg('loginError', 'Please enter a password', 'error'); return; }
-            if (p.length < 4) { showMsg('loginError', 'Password must be at least 4 characters', 'error'); return; }
-            if (p.length > 32) { showMsg('loginError', 'Password must be 32 characters or less', 'error'); return; }
-            
-            try {
-                const r = await fetch(`${API}/auth/`, { 
-                    method: 'POST', 
-                    headers: {'Content-Type': 'application/json'}, 
-                    body: JSON.stringify({password: p}) 
-                });
-                const d = await r.json();
-                if (r.ok) {
-                    pwd = p;
-                    document.querySelector('.login-section').classList.remove('active');
-                    document.querySelector('.filepad-section').classList.add('active');
-                    if (d.is_new_user) showMsg('filepadMessage', 'Welcome! Your secure storage is ready.', 'success');
-                    loadFiles();
-                } else { showMsg('loginError', d.error || 'Authentication failed', 'error'); }
-            } catch(e) { showMsg('loginError', 'Cannot connect to server', 'error'); }
+</div>
+
+<!-- MODAL -->
+<div id="confirmModal">
+    <div class="box">
+        <p id="confirmText"></p>
+        <div style="margin-top:20px; display:flex; justify-content:space-between;">
+            <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+            <button class="btn-danger" onclick="confirmDelete()">Delete</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const API = window.location.origin + '/api';
+let pwd = null, files = [], deleteId = null;
+
+document.getElementById('loginBtn').onclick = login;
+document.getElementById('password').addEventListener('keypress', e => { if(e.key==='Enter') login(); });
+document.getElementById('uploadArea').onclick = () => fileInput.click();
+document.getElementById('fileInput').onchange = upload;
+document.getElementById('logoutBtn').onclick = logout;
+
+async function login(){
+    const p = password.value;
+    if(!p || p.length<4 || p.length>32){
+        showMsg('loginError','Invalid password','error'); return;
+    }
+    const r = await fetch(`${API}/auth/`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({password:p})
+    });
+    const d = await r.json();
+    if(r.ok){
+        pwd=p;
+        document.querySelector('.login-section').classList.remove('active');
+        document.querySelector('.filepad-section').classList.add('active');
+        loadFiles();
+    }else showMsg('loginError',d.error,'error');
+}
+
+async function loadFiles(){
+    const r = await fetch(`${API}/files/?password=${pwd}`);
+    const d = await r.json();
+    if(r.ok){ files=d.files; showFiles(); }
+}
+
+async function upload(){
+    const list = fileInput.files;
+    for(let f of list){
+        if(f.size>104857600){ showMsg('filepadMessage','File too large','error'); continue; }
+
+        const fd=new FormData();
+        fd.append('file',f);
+        fd.append('password',pwd);
+
+        const r=await fetch(`${API}/upload/`,{method:'POST',body:fd});
+        const d=await r.json();
+
+        if(r.ok){
+            showMsg('filepadMessage',`✓ ${f.name} uploaded`,'success');
+        }else{
+            showMsg('filepadMessage',d.error,'error');
         }
-        
-        async function loadFiles() {
-            if (!pwd) return;
-            try {
-                const r = await fetch(`${API}/files/?password=${encodeURIComponent(pwd)}`);
-                const d = await r.json();
-                if (r.ok) { files = d.files; showFiles(); }
-            } catch(e) { console.error(e); }
-        }
-        
-        async function upload() {
-            const input = document.getElementById('fileInput'), fileList = input.files;
-            if (!fileList.length || !pwd) return;
-            for (let f of fileList) {
-                if (f.size > 10485760) { showMsg('filepadMessage', `${f.name} exceeds 10MB limit`, 'error'); continue; }
-                const fd = new FormData();
-                fd.append('file', f);
-                fd.append('password', pwd);
-                try {
-                    const r = await fetch(`${API}/upload/`, {method: 'POST', body: fd});
-                    if (r.ok) { showMsg('filepadMessage', `✓ ${f.name} uploaded`, 'success'); } 
-                    else { showMsg('filepadMessage', `✗ ${f.name} failed`, 'error'); }
-                } catch(e) { showMsg('filepadMessage', `✗ ${f.name} error`, 'error'); }
-            }
-            input.value = '';
-            loadFiles();
-        }
-        
-        function showFiles() {
-            const c = document.getElementById('files');
-            if (!files.length) { 
-                c.innerHTML = '<div class="empty-state"><p>📂 No files yet. Upload your first file!</p></div>'; 
-                return; 
-            }
-            c.innerHTML = files.map(f => `
-                <div class="file-item">
-                    <div class="file-info">
-                        <div class="file-icon">${getIcon(f.file_type)}</div>
-                        <div>
-                            <div class="file-name">${esc(f.original_filename)}</div>
-                            <div class="file-size">${size(f.file_size)}</div>
-                        </div>
-                    </div>
-                    <div class="file-actions">
-                        <button type="button" class="btn-download" onclick="download(${f.id})">Download</button>
-                        <button type="button" class="btn-danger" onclick="del(${f.id})">Delete</button>
-                    </div>
-                </div>
-            `).join('');
-        }
-        
-        function download(id) { window.open(`${API}/files/${id}/download/?password=${encodeURIComponent(pwd)}`); }
-        
-        async function del(id) {
-            if (!confirm('Delete this file?')) return;
-            try {
-                const r = await fetch(`${API}/files/${id}/delete/?password=${encodeURIComponent(pwd)}`, {method: 'DELETE'});
-                if (r.ok) { showMsg('filepadMessage', 'File deleted', 'success'); loadFiles(); }
-                else { showMsg('filepadMessage', 'Delete failed', 'error'); }
-            } catch(e) { showMsg('filepadMessage', 'Delete error', 'error'); }
-        }
-        
-        function logout() {
-            pwd = null; files = [];
-            document.getElementById('password').value = '';
-            document.querySelector('.filepad-section').classList.remove('active');
-            document.querySelector('.login-section').classList.add('active');
-            document.getElementById('loginError').innerHTML = '';
-            document.getElementById('filepadMessage').innerHTML = '';
-        }
-        
-        function getIcon(t) { 
-            if (!t) return '📎'; 
-            if (t.startsWith('image/')) return '🖼️'; 
-            if (t.startsWith('video/')) return '🎥'; 
-            if (t.startsWith('audio/')) return '🎵';
-            if (t.includes('pdf')) return '📄'; 
-            if (t.includes('word')) return '📝';
-            if (t.includes('sheet')) return '📊';
-            if (t.includes('zip') || t.includes('rar')) return '🗜️';
-            return '📎'; 
-        }
-        
-        function size(b) { 
-            if (!b) return '0 B'; 
-            const k = 1024, s = ['B','KB','MB','GB']; 
-            const i = Math.floor(Math.log(b) / Math.log(k)); 
-            return Math.round(b / Math.pow(k, i) * 100) / 100 + ' ' + s[i]; 
-        }
-        
-        function esc(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
-        
-        function showMsg(id, msg, type) { 
-            const el = document.getElementById(id); 
-            el.innerHTML = `<div class="${type}">${esc(msg)}</div>`; 
-            setTimeout(() => el.innerHTML = '', 3000); 
-        }
-    </script>
+    }
+    fileInput.value='';
+    loadFiles();
+}
+
+function showFiles(){
+    const c = document.getElementById('files');
+
+    if(!files.length){
+        c.innerHTML='<div class="empty-state">No files</div>';
+        return;
+    }
+
+    let html = `<p style="color:#6c757d;">📊 ${files.length} / 5 files used</p>`;
+
+    html += files.map(f=>`
+        <div class="file-item">
+            <div>${f.original_filename}</div>
+            <div>
+                <button class="btn-download" onclick="download(${f.id})">Download</button>
+                <button class="btn-danger" onclick="del(${f.id})">Delete</button>
+            </div>
+        </div>
+    `).join('');
+
+    c.innerHTML = html;
+}
+
+function download(id){
+    window.open(`${API}/files/${id}/download/?password=${pwd}`);
+}
+
+function del(id){
+    deleteId=id;
+    confirmText.innerText="Delete this file?";
+    confirmModal.style.display='flex';
+}
+
+function closeModal(){
+    confirmModal.style.display='none';
+}
+
+async function confirmDelete(){
+    const r = await fetch(`${API}/files/${deleteId}/delete/?password=${pwd}`,{method:'DELETE'});
+    if(r.ok){ showMsg('filepadMessage','Deleted','success'); loadFiles(); }
+    closeModal();
+}
+
+function logout(){
+    pwd=null;
+    files=[];
+    location.reload();
+}
+
+function showMsg(id,msg,type){
+    document.getElementById(id).innerHTML=`<div class="${type}">${msg}</div>`;
+}
+</script>
 </body>
 </html>
+```
