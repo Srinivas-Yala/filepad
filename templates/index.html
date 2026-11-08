@@ -1,0 +1,1065 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FilePad - Secure Storage</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 800px;
+            width: 100%;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            border-radius: 16px 16px 0 0;
+        }
+
+        .header h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .login-section,
+        .filepad-section {
+            display: none;
+        }
+
+        /* Keep both sections hidden until Django session restoration finishes. */
+        body.session-checking .login-section,
+        body.session-checking .filepad-section {
+            display: none !important;
+        }
+
+        .login-section.active,
+        .filepad-section.active {
+            display: block;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e1e8ed;
+            border-radius: 8px;
+            font-size: 1em;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+            padding: 8px 16px;
+            width: auto;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+            padding: 8px 16px;
+            width: auto;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .upload-area {
+            border: 2px dashed #667eea;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .upload-area:hover {
+            background-color: #f8f9ff;
+        }
+
+        .upload-area.disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .upload-icon {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 12px;
+            color: #667eea;
+        }
+
+        .upload-icon svg {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .file-type-icon {
+            width: 38px;
+            min-width: 38px;
+            height: 38px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 10px;
+            background: #eef0ff;
+            font-size: 1.35rem;
+        }
+
+        .upload-progress {
+            display: none;
+            margin: 15px 0 25px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .progress-info {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+            color: #333;
+        }
+
+        #progressFileName {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .progress-track {
+            width: 100%;
+            height: 12px;
+            background: #e1e8ed;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 10px;
+            transition: width 0.15s ease;
+        }
+
+        .progress-fill.completed {
+            background: #28a745;
+        }
+
+        .progress-fill.failed {
+            background: #dc3545;
+        }
+
+        .progress-status {
+            margin-top: 8px;
+            font-size: 0.85em;
+            color: #6c757d;
+        }
+
+        .file-list h3 {
+            margin-bottom: 15px;
+            color: #333;
+            margin-top: 20px;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+        }
+
+        .file-icon {
+            font-size: 1.5em;
+        }
+
+        .file-name {
+            font-weight: 500;
+            color: #333;
+            overflow-wrap: anywhere;
+        }
+
+        .file-size {
+            font-size: 0.85em;
+            color: #6c757d;
+        }
+
+        .file-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .file-actions button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+
+        .btn-download {
+            background: #28a745;
+            color: white;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+
+        .user-info {
+            background: #f8f9ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .user-info strong {
+            color: #667eea;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .info-text {
+            color: #6c757d;
+            font-size: 0.9em;
+            margin-top: 10px;
+        }
+
+        #confirmModal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            align-items: center;
+            justify-content: center;
+        }
+
+        #confirmModal .box {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            width: 300px;
+            text-align: center;
+        }
+
+        @media (max-width: 600px) {
+            .content {
+                padding: 20px;
+            }
+
+            .file-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+        }
+    </style>
+</head>
+
+<body class="session-checking">
+
+<div class="container">
+    <div class="header">
+        <h1>🔐 FilePad</h1>
+        <p>Secure Cloud Storage</p>
+    </div>
+
+    <div class="content">
+
+        <div class="login-section active">
+            <div id="loginError"></div>
+
+            <div class="input-group">
+                <label>Enter Your Password</label>
+                <input
+                    type="password"
+                    id="password"
+                    placeholder="4-32 characters"
+                    minlength="4"
+                    maxlength="32"
+                >
+            </div>
+
+            <button class="btn" id="loginBtn">
+                Access FilePad Anywhere
+            </button>
+        </div>
+
+        <div class="filepad-section">
+            <div id="filepadMessage"></div>
+
+            <div class="user-info">
+                <div>🔐 <strong>Logged in securely</strong></div>
+                <button class="btn-secondary" id="logoutBtn">Logout</button>
+            </div>
+
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon" aria-hidden="true">
+                    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M18 8.5h19l12 12V52a4 4 0 0 1-4 4H18a4 4 0 0 1-4-4V12.5a4 4 0 0 1 4-4Z" fill="#EEF0FF" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
+                        <path d="M37 9v12h12" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
+                        <path d="M32 45V29m0 0-7 7m7-7 7 7" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M23 49h18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <h3>Click to Upload Files</h3>
+                <p style="color:#6c757d;">Max 100MB • 5 files max</p>
+            </div>
+
+            <input type="file" id="fileInput" multiple style="display:none;">
+
+            <div class="upload-progress" id="uploadProgress">
+                <div class="progress-info">
+                    <span id="progressFileName">Uploading...</span>
+                    <strong id="progressPercent">0%</strong>
+                </div>
+
+                <div
+                    class="progress-track"
+                    role="progressbar"
+                    aria-label="File upload progress"
+                    aria-valuemin="0"
+                    aria-valuemax="100"
+                    aria-valuenow="0"
+                    id="progressTrack"
+                >
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+
+                <div class="progress-status" id="progressStatus">
+                    Preparing upload...
+                </div>
+            </div>
+
+            <div class="file-list">
+                <h3>Your Files</h3>
+                <div id="files"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="confirmModal">
+    <div class="box">
+        <p id="confirmText"></p>
+
+        <div style="margin-top:20px; display:flex; justify-content:space-between;">
+            <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+            <button class="btn-danger" onclick="confirmDelete()">Delete</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const API = window.location.origin + '/api';
+function getCSRFToken() {
+    const cookie = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('csrftoken='));
+
+    return cookie ? decodeURIComponent(cookie.split('=').slice(1).join('=')) : null;
+}
+
+function getCSRFHeaders() {
+    const token = getCSRFToken();
+
+    if (!token) {
+        throw new Error('CSRF token missing. Please refresh the page.');
+    }
+
+    return { 'X-CSRFToken': token };
+}
+
+let files = [];
+let deleteId = null;
+let isUploading = false;
+
+// 30-minute inactivity timeout (must match SESSION_COOKIE_AGE = 1800).
+const INACTIVITY_LIMIT = 30 * 60 * 1000;
+const SESSION_HEARTBEAT_INTERVAL = 5 * 60 * 1000;
+let inactivityTimer = null;
+let inactivityDeadline = 0;
+let sessionActive = false;
+let lastSessionHeartbeat = 0;
+
+const fileInput = document.getElementById('fileInput');
+const uploadArea = document.getElementById('uploadArea');
+const uploadProgress = document.getElementById('uploadProgress');
+const progressFill = document.getElementById('progressFill');
+const progressPercent = document.getElementById('progressPercent');
+const progressFileName = document.getElementById('progressFileName');
+const progressStatus = document.getElementById('progressStatus');
+const progressTrack = document.getElementById('progressTrack');
+
+// All API requests use the same-origin Django session cookie.
+const fetchOptions = {
+    credentials: 'same-origin'
+};
+
+// Start the browser-side inactivity timer after a session is confirmed.
+function startInactivityTimer() {
+    sessionActive = true;
+    lastSessionHeartbeat = Date.now();
+    resetInactivityTimer();
+}
+
+function resetInactivityTimer() {
+    if (!sessionActive) return;
+
+    clearTimeout(inactivityTimer);
+    inactivityDeadline = Date.now() + INACTIVITY_LIMIT;
+
+    inactivityTimer = setTimeout(() => {
+        expireInactiveSession();
+    }, INACTIVITY_LIMIT);
+}
+
+function stopInactivityTimer() {
+    clearTimeout(inactivityTimer);
+    inactivityTimer = null;
+    inactivityDeadline = 0;
+    sessionActive = false;
+}
+
+async function expireInactiveSession() {
+    if (!sessionActive) return;
+
+    stopInactivityTimer();
+    files = [];
+
+    // Invalidate the Django session as well as hiding the vault in this tab.
+    try {
+        await fetch(`${API}/logout/`, {
+            method: 'POST',
+            credentials: 'same-origin',
+	    headers: getCSRFHeaders()
+
+        });
+    } catch (error) {
+        console.error('Automatic logout request failed:', error);
+    }
+
+    showLogin();
+    showMsg(
+        'loginError',
+        'You were logged out after 30 minutes of inactivity. Please log in again.',
+        'error'
+    );
+}
+
+// Browser activity resets the timer. A lightweight files request every
+// five minutes of active use also refreshes Django's server-side session.
+async function handleSessionActivity() {
+    if (!sessionActive) return;
+
+    if (Date.now() >= inactivityDeadline) {
+        await expireInactiveSession();
+        return;
+    }
+
+    resetInactivityTimer();
+
+    const now = Date.now();
+    if (now - lastSessionHeartbeat >= SESSION_HEARTBEAT_INTERVAL) {
+        lastSessionHeartbeat = now;
+
+        try {
+            const response = await fetch(`${API}/files/`, {
+                credentials: 'same-origin'
+            });
+
+            if (response.status === 401) {
+                stopInactivityTimer();
+                files = [];
+                showLogin();
+                showMsg(
+                    'loginError',
+                    'Your session has expired. Please log in again.',
+                    'error'
+                );
+            }
+        } catch (error) {
+            console.error('Session heartbeat failed:', error);
+        }
+    }
+}
+
+['click', 'keydown', 'scroll', 'touchstart', 'pointerdown'].forEach(eventName => {
+    document.addEventListener(eventName, handleSessionActivity, { passive: true });
+});
+
+// Check the deadline when the user returns to this browser tab.
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && sessionActive) {
+        if (Date.now() >= inactivityDeadline) {
+            expireInactiveSession();
+        }
+    }
+});
+
+// Event listeners
+document.getElementById('loginBtn').onclick = login;
+
+document.getElementById('password').addEventListener('keypress', e => {
+    if (e.key === 'Enter') login();
+});
+
+uploadArea.onclick = () => {
+    if (!isUploading) fileInput.click();
+};
+
+fileInput.onchange = upload;
+
+document.getElementById('logoutBtn').onclick = logout;
+
+
+// LOGIN
+async function login() {
+    const password = document.getElementById('password').value;
+
+    if (!password || password.length < 4 || password.length > 32) {
+        showMsg('loginError', 'Invalid password', 'error');
+        return;
+    }
+
+    const loginBtn = document.getElementById('loginBtn');
+    loginBtn.disabled = true;
+
+    try {
+        const response = await fetch(`${API}/auth/`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+		    ...getCSRFHeaders()
+            },
+            body: JSON.stringify({ password })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            showMsg('loginError', data.error || 'Login failed', 'error');
+            return;
+        }
+
+        document.getElementById('password').value = '';
+        showFilepad();
+
+        await loadFiles();
+
+    } catch (error) {
+        showMsg('loginError', 'Unable to connect to server', 'error');
+    } finally {
+        loginBtn.disabled = false;
+    }
+}
+
+
+// SHOW FILEPAD
+function showFilepad() {
+    document.querySelector('.login-section').classList.remove('active');
+    document.querySelector('.filepad-section').classList.add('active');
+
+    // Clear stale login or file-operation messages when entering the vault.
+    document.getElementById('loginError').replaceChildren();
+    document.getElementById('filepadMessage').replaceChildren();
+    startInactivityTimer();
+}
+
+
+// SHOW LOGIN
+function showLogin() {
+    stopInactivityTimer();
+    document.querySelector('.filepad-section').classList.remove('active');
+    document.querySelector('.login-section').classList.add('active');
+}
+
+
+// RESTORE SESSION AFTER PAGE RELOAD
+async function restoreSession() {
+    try {
+        const response = await fetch(`${API}/files/`, {
+            credentials: 'same-origin'
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            files = data.files || [];
+            showFilepad();
+            showFiles();
+        } else {
+            files = [];
+            showLogin();
+            if (response.status !== 401) {
+                console.error('Unable to restore session:', response.status);
+            }
+        }
+    } catch (error) {
+        files = [];
+        showLogin();
+        console.error('Session restoration failed:', error);
+    } finally {
+        document.body.classList.remove('session-checking');
+    }
+}
+
+
+// LOAD FILES
+async function loadFiles() {
+    try {
+        const response = await fetch(`${API}/files/`, {
+            credentials: 'same-origin'
+        });
+
+        if (response.status === 401) {
+            files = [];
+            showLogin();
+            return;
+        }
+
+        const data = await response.json();
+
+        if (response.ok) {
+            files = data.files;
+            showFiles();
+        } else {
+            showMsg('filepadMessage', data.error || 'Unable to load files', 'error');
+        }
+
+    } catch (error) {
+        showMsg('filepadMessage', 'Unable to load files', 'error');
+    }
+}
+
+
+// UPLOAD FILES WITH REAL-TIME PROGRESS
+async function upload() {
+    const list = Array.from(fileInput.files);
+
+    if (!list.length || isUploading) return;
+
+    isUploading = true;
+    uploadArea.classList.add('disabled');
+
+    try {
+        for (const file of list) {
+            if (file.size > 104857600) {
+                showMsg(
+                    'filepadMessage',
+                    `${file.name}: File exceeds the 100MB limit`,
+                    'error'
+                );
+                continue;
+            }
+
+            progressFileName.textContent = file.name;
+            progressPercent.textContent = '0%';
+            progressStatus.textContent = 'Preparing upload...';
+
+            progressFill.style.width = '0%';
+            progressFill.className = 'progress-fill';
+            progressTrack.setAttribute('aria-valuenow', 0);
+
+            uploadProgress.style.display = 'block';
+
+            try {
+                await uploadSingleFile(file);
+
+                progressPercent.textContent = '100%';
+                progressFill.style.width = '100%';
+                progressFill.classList.add('completed');
+                progressTrack.setAttribute('aria-valuenow', 100);
+
+                progressStatus.textContent = 'Upload completed successfully';
+
+                showMsg(
+                    'filepadMessage',
+                    `✓ ${file.name} uploaded successfully`,
+                    'success'
+                );
+
+            } catch (error) {
+                progressFill.classList.add('failed');
+                progressStatus.textContent = error.message;
+
+                showMsg(
+                    'filepadMessage',
+                    `${file.name}: ${error.message}`,
+                    'error'
+                );
+            }
+        }
+
+    } finally {
+        fileInput.value = '';
+        isUploading = false;
+        uploadArea.classList.remove('disabled');
+        await loadFiles();
+    }
+}
+
+
+// UPLOAD ONE FILE USING XMLHttpRequest
+function uploadSingleFile(file) {
+    return new Promise((resolve, reject) => {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const xhr = new XMLHttpRequest();
+
+	xhr.open('POST', `${API}/upload/`, true);
+	xhr.withCredentials = true;
+
+	const csrfToken = getCSRFToken();
+
+	if (!csrfToken) {
+    		reject(new Error('CSRF token missing. Please refresh the page.'));
+    	return;
+	}
+
+xhr.setRequestHeader('X-CSRFToken', csrfToken);        
+
+        xhr.upload.addEventListener('progress', event => {
+            if (event.lengthComputable) {
+                const percent = Math.round(
+                    (event.loaded / event.total) * 100
+                );
+
+                progressFill.style.width = `${percent}%`;
+                progressPercent.textContent = `${percent}%`;
+
+                progressTrack.setAttribute(
+                    'aria-valuenow',
+                    percent
+                );
+
+                progressStatus.textContent =
+                    `Uploading... ${formatBytes(event.loaded)} of ${formatBytes(event.total)}`;
+            }
+        });
+
+        xhr.onload = () => {
+            let data;
+
+            try {
+                data = JSON.parse(xhr.responseText);
+            } catch (error) {
+                reject(new Error('Invalid server response'));
+                return;
+            }
+
+            if (xhr.status >= 200 && xhr.status < 300) {
+                resolve(data);
+            } else if (xhr.status === 401) {
+                reject(new Error('Session expired. Please log in again.'));
+                showLogin();
+            } else {
+                reject(new Error(data.error || `Upload failed (${xhr.status})`));
+            }
+        };
+
+        xhr.onerror = () => {
+            reject(new Error('Network error during upload'));
+        };
+
+        xhr.ontimeout = () => {
+            reject(new Error('Upload timed out'));
+        };
+
+        xhr.timeout = 0;
+        xhr.send(formData);
+    });
+}
+
+
+// FORMAT FILE SIZE
+function formatBytes(bytes) {
+    if (bytes < 1024) return `${bytes} B`;
+
+    if (bytes < 1048576) {
+        return `${(bytes / 1024).toFixed(1)} KB`;
+    }
+
+    return `${(bytes / 1048576).toFixed(2)} MB`;
+}
+
+
+// Choose a recognizable symbol from the file extension or MIME type.
+function getFileTypeIcon(file) {
+    const filename = (file.original_filename || '').toLowerCase();
+    const extension = filename.includes('.') ? filename.split('.').pop() : '';
+    const mime = (file.content_type || file.mime_type || '').toLowerCase();
+
+    if (extension === 'pdf' || mime.includes('pdf')) return '📕';
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'tif', 'tiff'].includes(extension) || mime.startsWith('image/')) return '🖼️';
+    if (['doc', 'docx', 'odt', 'rtf'].includes(extension) || mime.includes('word')) return '📝';
+    if (['xls', 'xlsx', 'csv', 'ods'].includes(extension) || mime.includes('spreadsheet') || mime.includes('excel')) return '📊';
+    if (['ppt', 'pptx', 'odp'].includes(extension) || mime.includes('presentation')) return '📽️';
+    if (['zip', 'rar', '7z', 'tar', 'gz'].includes(extension)) return '🗜️';
+    if (['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac'].includes(extension) || mime.startsWith('audio/')) return '🎵';
+    if (['mp4', 'mov', 'avi', 'mkv', 'webm', 'mpeg'].includes(extension) || mime.startsWith('video/')) return '🎬';
+    if (['txt', 'md', 'log'].includes(extension) || mime.startsWith('text/')) return '📄';
+    if (['py', 'js', 'html', 'css', 'json', 'java', 'c', 'cpp', 'php'].includes(extension)) return '💻';
+    return '📁';
+}
+
+
+// SHOW FILES
+function showFiles() {
+    const container = document.getElementById('files');
+
+    if (!files.length) {
+        container.innerHTML = '<div class="empty-state">No files</div>';
+        return;
+    }
+
+    const heading = document.createElement('p');
+    heading.style.color = '#6c757d';
+    heading.textContent = `📊 ${files.length} / 5 files used`;
+
+    container.replaceChildren(heading);
+
+    files.forEach(file => {
+        const item = document.createElement('div');
+        item.className = 'file-item';
+
+        const info = document.createElement('div');
+        info.className = 'file-info';
+
+        const typeIcon = document.createElement('span');
+        typeIcon.className = 'file-type-icon';
+        typeIcon.setAttribute('aria-hidden', 'true');
+        typeIcon.textContent = getFileTypeIcon(file);
+
+        const name = document.createElement('div');
+        name.className = 'file-name';
+        name.textContent = file.original_filename;
+
+        info.append(typeIcon, name);
+
+        const actions = document.createElement('div');
+        actions.className = 'file-actions';
+
+        const downloadButton = document.createElement('button');
+        downloadButton.className = 'btn-download';
+        downloadButton.textContent = 'Download';
+        downloadButton.onclick = () => download(file.id);
+
+        const deleteButton = document.createElement('button');
+        deleteButton.className = 'btn-danger';
+        deleteButton.textContent = 'Delete';
+        deleteButton.onclick = () => del(file.id);
+
+        actions.append(downloadButton, deleteButton);
+        item.append(info, actions);
+        container.appendChild(item);
+    });
+}
+
+
+// DOWNLOAD
+function download(id) {
+    // Browser sends the same-origin session cookie automatically.
+    window.open(
+        `${API}/files/${id}/download/`,
+        '_blank'
+    );
+}
+
+
+// DELETE
+function del(id) {
+    deleteId = id;
+
+    document.getElementById('confirmText').textContent =
+        'Delete this file?';
+
+    document.getElementById('confirmModal').style.display = 'flex';
+}
+
+
+function closeModal() {
+    document.getElementById('confirmModal').style.display = 'none';
+}
+
+
+// CONFIRM DELETE
+async function confirmDelete() {
+    if (!deleteId) return;
+
+    try {
+        const response = await fetch(
+            `${API}/files/${deleteId}/delete/`,
+            {
+                method: 'DELETE',
+                credentials: 'same-origin',
+		headers: getCSRFHeaders()
+
+            }
+        );
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showMsg('filepadMessage', 'Deleted successfully', 'success');
+            await loadFiles();
+        } else if (response.status === 401) {
+            showLogin();
+            showMsg('loginError', 'Your session has expired. Please log in again.', 'error');
+        } else {
+            showMsg('filepadMessage', data.error || 'Delete failed', 'error');
+        }
+
+    } catch (error) {
+        showMsg('filepadMessage', 'Unable to delete file', 'error');
+    }
+
+    closeModal();
+    deleteId = null;
+}
+
+
+// LOGOUT
+async function logout() {
+    try {
+        const response = await fetch(`${API}/logout/`, {
+            method: 'POST',
+            credentials: 'same-origin',
+	    headers: getCSRFHeaders()
+
+        });
+
+        if (!response.ok) {
+            showMsg('filepadMessage', 'Unable to log out. Please try again.', 'error');
+            return;
+        }
+
+        files = [];
+        uploadProgress.style.display = 'none';
+        showLogin();
+
+    } catch (error) {
+        showMsg('filepadMessage', 'Unable to connect to server', 'error');
+    }
+}
+
+
+// SHOW MESSAGE
+function showMsg(id, msg, type) {
+    const container = document.getElementById(id);
+
+    const message = document.createElement('div');
+    message.className = type;
+    message.textContent = msg;
+
+    container.replaceChildren(message);
+}
+
+
+// RESTORE LOGIN WHEN PAGE LOADS
+document.addEventListener('DOMContentLoaded', restoreSession);
+
+</script>
+
+</body>
+</html>

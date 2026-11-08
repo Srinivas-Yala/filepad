@@ -6,5 +6,6 @@ urlpatterns = [
     path('files/', views.get_files, name='get_files'),
     path('upload/', views.upload_file, name='upload_file'),
     path('files/<int:file_id>/delete/', views.delete_file, name='delete_file'),
+    path('logout/', views.logout_user, name='logout'),
     path('files/<int:file_id>/download/', views.download_file, name='download_file'),
 ]
