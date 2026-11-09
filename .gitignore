@@ -40,3 +40,6 @@ gunicorn.pid
 *.pem
 *.key
 secrets/
+
+# Local host service backup
+filepad.service.host-backup

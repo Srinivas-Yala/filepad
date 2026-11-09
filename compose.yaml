@@ -1,0 +1,48 @@
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: filepad-web
+
+    restart: unless-stopped
+    init: true
+
+    env_file:
+      - .env
+
+    environment:
+      RDS_CA_BUNDLE_PATH: /run/certs/global-bundle.pem
+
+    ports:
+      - "127.0.0.1:8000:8000"
+
+    volumes:
+      - ./global-bundle.pem:/run/certs/global-bundle.pem:ro
+
+    mem_limit: 256m
+    memswap_limit: 384m
+
+    command:
+      - gunicorn
+      - --bind
+      - 0.0.0.0:8000
+      - --workers
+      - "1"
+      - --threads
+      - "1"
+      - --timeout
+      - "120"
+      - --access-logfile
+      - "-"
+      - --error-logfile
+      - "-"
+      - filepad_project.wsgi:application
+
+    security_opt:
+      - no-new-privileges:true
+
+    cap_drop:
+      - ALL

@@ -96,8 +96,11 @@ DATABASES = {
         'HOST': os.environ.get('DB_HOST'),
         'PORT': os.environ.get('DB_PORT', '5432'),
         'OPTIONS': {
-            'sslmode': 'verify-full',
-            'sslrootcert': str(BASE_DIR / 'global-bundle.pem'),
+            'sslmode': os.environ.get('DB_SSLMODE', 'verify-full'),
+            'sslrootcert': os.environ.get(
+                'RDS_CA_BUNDLE_PATH',
+                str(BASE_DIR / 'global-bundle.pem')
+            ),
         },
     }
 }
