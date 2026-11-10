@@ -1,6 +1,11 @@
 # Use a lightweight Python base image
 FROM python:3.12-slim
 
+# Update available Debian security packages
+RUN apt-get update && \
+    apt-get install --only-upgrade -y --no-install-recommends zlib1g && \
+    rm -rf /var/lib/apt/lists/*
+
 # Python runtime settings
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
