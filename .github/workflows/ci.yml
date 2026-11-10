@@ -1,4 +1,4 @@
-name: FilePad CI
+name: FilePad CI and CD
 
 on:
   push:
@@ -82,9 +82,13 @@ jobs:
         run: python manage.py test
 
   docker-build:
-    name: Build Docker Image
+    name: Build and Publish Docker Image
     runs-on: ubuntu-latest
     needs: django-tests
+
+    permissions:
+      contents: read
+      packages: write
 
     env:
       DJANGO_SECRET_KEY: ci-only-dummy-secret-key
@@ -96,5 +100,30 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build FilePad image
-        run: docker build -t filepad-web:ci .
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract Docker image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/srinivas-yala/filepad
+          tags: |
+            type=sha,format=long,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Log in to GitHub Container Registry
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish FilePad image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
